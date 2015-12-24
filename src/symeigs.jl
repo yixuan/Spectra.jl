@@ -160,7 +160,7 @@ function symeigs{T}(A::AbstractMatOp{T};
     ritzconv::Vector{Bool} = zeros(Bool, nev)
 
     ## Precision parameter used to test convergence
-    prec::T = eps(T)^(T(2.0) / 3)
+    prec::T = eps(T)^(convert(T, 2.0) / 3)
 
     ## Initialize vectors
     v0norm = norm(v0)
