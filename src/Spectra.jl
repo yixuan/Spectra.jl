@@ -1,5 +1,9 @@
 module Spectra
 
-# package code goes here
+export AbstractMatOp, DenseMatProd
+export symeigs
+
+include("hessenqr.jl")
+include("symeigs.jl")
 
 end # module
