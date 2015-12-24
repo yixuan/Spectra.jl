@@ -13,7 +13,7 @@ nrow{T}(A::DenseMatProd{T}) = size(A.mat, 1)
 
 
 ## Arnoldi factorization starting from step-k
-function arnoldifac!{T}(k, m, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, A::AbstractMatOp{T}, prec::T)
+function arnoldifac!{T}(k::Int, m::Int, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, A::AbstractMatOp{T}, prec::T)
     if m <= k
         error("m must be greater than k")
     end
@@ -51,7 +51,7 @@ function arnoldifac!{T}(k, m, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, A::Abstr
 end
 
 ## Apply shifts on V, H and f
-function applyshifts!{T}(k, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, shifts::Vector{T})
+function applyshifts!{T}(k::Int, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, shifts::Vector{T})
     n = size(V, 1)
     ncv = size(V, 2)
     Q::Matrix{T} = eye(T, ncv)
@@ -74,30 +74,30 @@ function applyshifts!{T}(k, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, shifts::Ve
 end
 
 ## Retrieve Ritz values and Ritz vectors
-function ritzpairs!{T}(which, H::Matrix{T}, ritzval::Vector{T}, ritzvec::Matrix{T}, ritzest::Vector{T})
+function ritzpairs!{T}(which::Symbol, H::Matrix{T}, ritzval::Vector{T}, ritzvec::Matrix{T}, ritzest::Vector{T})
     ncv = size(ritzvec, 1)
     nev = size(ritzvec, 2)
     ## Eigen decomposition on H, which is symmetric and tridiagonal
     decomp = eigfact(SymTridiagonal(diag(H), diag(H, -1)))
 
     ## Sort Ritz values according to "which"
-    if which == "LM"
+    if which == :LM
         trans = abs
         rev = true
-    elseif which == "SM"
+    elseif which == :SM
         trans = abs
         rev = false
-    elseif which == "LA" || which == "BE"
+    elseif which == :LA || which == :BE
         trans = (x -> x)
         rev = true
-    else which == "SA"
+    else which == :SA
         trans = (x -> x)
         rev = false
     end
 
     ix = sortperm(decomp.values, by = trans, rev = rev)
 
-    if which == "BE"
+    if which == :BE
         ixcp = copy(ix)
         for i = 1:ncv
             if i % 2 == 1
@@ -114,7 +114,7 @@ function ritzpairs!{T}(which, H::Matrix{T}, ritzval::Vector{T}, ritzvec::Matrix{
 end
 
 ## Adjusted nev
-function nevadjusted{T}(nev, ncv, nconv, ritzest::Vector{T}, prec::T)
+function nevadjusted{T}(nev::Int, ncv::Int, nconv::Int, ritzest::Vector{T}, prec::T)
     nevnew = nev + sum(abs(ritzest[(nev + 1):ncv]) .< prec)
     nevnew += min(nconv, div(ncv - nevnew, 2))
     if nevnew == 1 && ncv >= 6
@@ -128,11 +128,11 @@ end
 
 
 function symeigs{T}(A::AbstractMatOp{T};
-                    nev = 6, ncv = min(nrow(A), max(2 * nev + 1, 20)),
-                    which = "LM",
-                    tol = 1e-8, maxiter = 300,
-                    returnvec = true,
-                    v0 = rand(nrow(A)) - 0.5)
+                    nev::Int = 6, ncv::Int = min(nrow(A), max(2 * nev + 1, 20)),
+                    which::Symbol = :LM,
+                    tol::T = 1e-8, maxiter::Int = 300,
+                    returnvec::Bool = true,
+                    v0::Vector{T} = rand(T, nrow(A)) - convert(T, 0.5))
     ## Size of matrix
     n = nrow(A)
     ## Check arguments
@@ -144,11 +144,11 @@ function symeigs{T}(A::AbstractMatOp{T};
     end
 
     ## Number of matrix operations called
-    nmatop = 0
+    nmatop::Int = 0
     ## Number of restarting iteration
-    niter = maxiter
+    niter::Int = maxiter
     ## Number of converged eigenvalues
-    nconv = 0
+    nconv::Int = 0
 
     ## Matrices and vectors in the Arnoldi factorization
     V::Matrix{T} = zeros(T, n, ncv)
@@ -168,7 +168,7 @@ function symeigs{T}(A::AbstractMatOp{T};
         error("initial residual vector cannot be zero")
     end
     v0[:] /= v0norm
-    w = performop(A, v0)
+    w::Vector{T} = performop(A, v0)
     nmatop += 1
     H[1, 1] = dot(v0, w)
     f[:] = w - v0 * H[1, 1]
@@ -179,10 +179,12 @@ function symeigs{T}(A::AbstractMatOp{T};
     nmatop += (ncv - 1)
     ritzpairs!(which, H, ritzval, ritzvec, ritzest)
     ## Restarting
+    thresh::Vector{T} = zeros(T, nev)
+    resid::Vector{T} = zeros(T, nev)
     for i = 1:maxiter
         ## Convergence test
-        thresh = tol * max(abs(ritzval[1:nev]), prec)
-        resid = abs(ritzest[1:nev]) * norm(f)
+        thresh[:] = tol * max(abs(ritzval[1:nev]), prec)
+        resid[:] = abs(ritzest[1:nev]) * norm(f)
         ritzconv[:] = (resid .< thresh)
         nconv = sum(ritzconv)
 
@@ -191,7 +193,7 @@ function symeigs{T}(A::AbstractMatOp{T};
             break
         end
 
-        nevadj = nevadjusted(nev, ncv, nconv, ritzest, prec)
+        nevadj::Int = nevadjusted(nev, ncv, nconv, ritzest, prec)
 
         applyshifts!(nevadj, V, H, f, ritzval)
         arnoldifac!(nevadj, ncv, V, H, f, A, prec)
@@ -206,7 +208,7 @@ function symeigs{T}(A::AbstractMatOp{T};
     if returnvec
         eigvec = V * ritzvec[:, converged]
     else
-        eigvec = zeros(T, 0, 0)
+        eigvec = nothing
     end
 
     return eigval, eigvec, nconv, niter, nmatop
