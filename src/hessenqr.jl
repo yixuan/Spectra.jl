@@ -28,7 +28,9 @@ function hessenqr!{T}(H::Matrix{T})
         y = H[i + 1, i]
         r = hypot(x, y)
         ## If r is too small, (cosθ, sinθ) stores the original values (1, 0)
-        if r > eps(T)
+        if r < eps(T)
+            r = zero(T)
+        else
             cosθ[i] = x / r
             sinθ[i] = -y / r
         end
@@ -46,7 +48,7 @@ function hessenqr!{T}(H::Matrix{T})
         end
     end
 
-    ## Apply the rotations o the right H -> H * Gi'
+    ## Apply the rotations on the right H -> H * Gi'
     ## H[:, i]     <- cosθ[i] * H[:, i] - sinθ[i] * H[:, i + 1]
     ## H[:, i + 1] <- sinθ[i] * H[:, i] + cosθ[i] * H[:, i + 1]
     for i = 1:(n - 1)
