@@ -43,9 +43,18 @@ function arnoldifac!{T}(k, m, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, A::Abstr
         ## f/||f|| is going to be the next column of V, so we need to test
         ## whether V' * (f/||f||) ~= 0
         Vf::Vector{T} = V[:, 1:(i + 1)]' * f
-        if maximum(abs(Vf)) > prec * beta
+        count = 0
+        while count < 5 && maximum(abs(Vf)) > prec * beta
+            ## f <- f - V * Vf
             f[:] -= V[:, 1:(i + 1)] * Vf
+            ## h <- h + Vf
+            H[i, i + 1] += Vf[i]
+            H[i + 1, i] = H[i, i + 1]
+            H[i + 1, i + 1] += Vf[i + 1]
+            ## beta <- ||f||
             beta = norm(f)
+
+            Vf[:] = V[:, 1:(i + 1)]' * f
         end
     end
 end
@@ -67,6 +76,18 @@ function applyshifts!{T}(k, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, shifts::Ve
             H[j, j] += shifts[i]
         end
     end
+
+    ## V -> VQ, only need to update the first k+1 columns
+    ## Q has some elements being zero
+    ## The first (ncv - k + i) elements of the i-th column of Q are non-zero
+    # Vs = zeros(T, n, k + 1)
+    # for i = 1:k
+    #     nnz = ncv - k + i
+    #     Vs[:, i] = V[:, 1:nnz] * Q[1:nnz, i]
+    # end
+    # Vs[:, k + 1] = V * Q[:, k + 1]
+    # V[:, 1:(k + 1)] = Vs
+    ## However this seems to be slower than a direct multiplication
 
     ## V -> VQ
     V[:, :] = V * Q
