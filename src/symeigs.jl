@@ -61,7 +61,7 @@ function applyshifts!{T}(k, V::Matrix{T}, H::Matrix{T}, f::Vector{T}, shifts::Ve
         for j = 1:ncv
             H[j, j] -= shifts[i]
         end
-        qr = hessenqr!(H)   ## H -> RQ
+        qr = tridiagqr!(H)  ## H -> RQ
         applyright!(qr, Q)  ## Q -> Q * Qi
         for j = 1:ncv
             H[j, j] += shifts[i]
