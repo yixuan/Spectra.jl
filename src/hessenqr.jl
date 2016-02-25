@@ -62,6 +62,83 @@ function hessenqr!{T}(H::Matrix{T})
     return HessenbergQR(cosθ, sinθ)
 end
 
+## QR decomposition on a tridiagonal matrix
+## H will be overwritten by Q'HQ=RQ
+function tridiagqr!{T}(H::Matrix{T})
+    ## Size of matrix
+    n = size(H, 1)
+    if n != size(H, 2)
+        error("matrix must be square")
+    end
+
+    ## Force H to be tridiagonal
+    maindiag = diag(H)
+    subdiag = diag(H, -1)
+    fill!(H, zero(T))
+    for i = 1:(n - 1)
+        H[i, i] = maindiag[i]
+        H[i + 1, i] = subdiag[i]
+        H[i, i + 1] = subdiag[i]
+    end
+    H[n, n] = maindiag[n]
+
+    ## Rotation factors
+    ## Each pair (cosθ[i], sinθ[i]) forms a rotation matrix
+    ## Gi = [cosθ[i]  -sinθ[i]]
+    ##      [sinθ[i]   cosθ[i]]
+    cosθ = ones(T, n)
+    sinθ = zeros(T, n)
+
+    for i = 1:(n - 1)
+        ## Calculate cosθ and sinθ
+        x = H[i, i]
+        y = H[i + 1, i]
+        r = hypot(x, y)
+        ## If r is too small, (cosθ, sinθ) stores the original values (1, 0)
+        if r < eps(T)
+            r = zero(T)
+        else
+            cosθ[i] = x / r
+            sinθ[i] = -y / r
+        end
+        ## Apply the rotation on the left H -> Gi * H
+        ## Update H[i, i] and H[i + 1, i]
+        H[i, i] = r
+        H[i + 1, i] = zero(T)
+        ## Update H[i, i + 1] and H[i + 1, i + 1]
+        c = cosθ[i]
+        s = sinθ[i]
+        tmp = H[i, i + 1]
+        H[i,     i + 1] = c * tmp - s * H[i + 1, i + 1]
+        H[i + 1, i + 1] = s * tmp + c * H[i + 1, i + 1]
+        ## Update H[i, i + 2] and H[i + 1, i + 2]
+        if i < n - 1
+            H[i,     i + 2] = -s * H[i + 1, i + 2]
+            H[i + 1, i + 2] *= c
+        end
+    end
+
+    ## Apply the rotations on the right H -> H * Gi'
+    ## H[:, i]     <- cosθ[i] * H[:, i] - sinθ[i] * H[:, i + 1]
+    ## H[:, i + 1] <- sinθ[i] * H[:, i] + cosθ[i] * H[:, i + 1]
+    for i = 1:(n - 1)
+        c = cosθ[i]
+        s = sinθ[i]
+
+        tmp = H[i + 1, i]
+        H[i, i]         = c * H[i, i] - s * H[i, i + 1]
+        H[i + 1, i]     = c * tmp     - s * H[i + 1, i + 1]
+        H[i + 1, i + 1] = s * tmp     + c * H[i + 1, i + 1]
+
+        H[i, i + 1] = H[i + 1, i]
+        if i < n - 1
+            H[i, i + 2] = zero(T)
+        end
+    end
+
+    return HessenbergQR(cosθ, sinθ)
+end
+
 ## Apply the QR factorization to the right of a matrix A
 ## A -> A * Q'
 function applyright!{T}(qr::HessenbergQR{T}, A::Matrix{T})
